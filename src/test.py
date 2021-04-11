@@ -13,7 +13,7 @@ def main():
     ]:
         for n in range(1, 8):
             result = subprocess.run([
-                "./bin/main.exe",
+                "./bin/main",
                 "--Nx", str(Nx),
                 "--Ny", str(Ny),
                 "--K1", str(K1),

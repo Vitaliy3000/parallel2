@@ -39,8 +39,8 @@ char* FLOAT_ARGUMENT_ERROR = "Argument %s must be double\n";
 
 char* HELP_STRING = "\
   usage:\n\
-    a.exe [--help]\n\
-    a.exe --Nx <Nx> --Ny <Ny> --K1 <K1> --K2 <K2> -n <n> --maxiter <N> --tol <tol> [--file  <filename>]\n\
+    main.exe [--help]\n\
+    main.exe --Nx <Nx> --Ny <Ny> --K1 <K1> --K2 <K2> -n <n> --maxiter <N> --tol <tol> [--file  <filename>]\n\
   options:\n\
     [--help]     Show this screen.\n\
     --Nx         Count of elements in horizontal\n\
@@ -56,11 +56,16 @@ char* HELP_STRING = "\
 int ERROR_FLAG = 0;
 
 
-struct time_by_kernel {
-    double dot;
-    double axpby;
-    double SpMV;
-    double VVbe;
+struct res_by_kernel {
+    double time_dot;
+    double time_axpby;
+    double time_SpMV;
+    double time_VVbe;
+
+    double gflops_dot;
+    double gflops_axpby;
+    double gflops_SpMV;
+    double gflops_VVbe;
 };
 
 
@@ -114,7 +119,7 @@ int strict_atoi(char str[], int *ptr) {
 
 double strict_atof(char str[], double *ptr) {
     for(int i = 0; str[i] != '\0'; i++) {
-        if (((str[i] > '9') || (str[i] < '0')) && (str[i] != '-') && (str[i] != '.')) {
+        if (((str[i] > '9') || (str[i] < '0')) && (str[i] != '-') && (str[i] != '.') && (str[i] != 'e')) {
             return -1;
         }
     }
@@ -492,13 +497,18 @@ void matrix2csr(int K, int array[], int N, int IA[], int M, int JA[]) {
 }
 
 
-void solve(int N, int IA[], double x[], int JA[], double A[], double b[], int *k, double *res, int maxiter, double tol, struct time_by_kernel *time) {
+void solve(int N, int IA[], double x[], int JA[], double A[], double b[], int *k, double *res, int maxiter, double tol, struct res_by_kernel *gflops) {
     /*
     N - length of IA, x, b
     n - count of iter
     res - norm L2
     */
     double start_time;
+
+    gflops->gflops_dot = 0;
+    gflops->gflops_axpby = 0;
+    gflops->gflops_SpMV = 0;
+    gflops->gflops_VVbe = 0;
 
     if (DEBUG) printf("\nDEBUG solve:\n");
 
@@ -516,21 +526,25 @@ void solve(int N, int IA[], double x[], int JA[], double A[], double b[], int *k
 
     start_time = omp_get_wtime();
     SpMV(N, IA, JA, A, x, r);
-    time->SpMV += omp_get_wtime() - start_time;
+    gflops->time_SpMV += omp_get_wtime() - start_time;
+    gflops->gflops_SpMV += 2 * 1E-9 * IA[N];
 
     start_time = omp_get_wtime();
     axpby(N, -1, r, 1, b);
-    time->axpby += omp_get_wtime() - start_time;
+    gflops->time_axpby += omp_get_wtime() - start_time;
+    gflops->gflops_axpby += 3 * 1E-9 * N;
 
     *k = 1;
     while (1) {
         start_time = omp_get_wtime();
         VVbe(N, M, r, z);
-        time->VVbe += omp_get_wtime() - start_time;
+        gflops->time_VVbe += omp_get_wtime() - start_time;
+        gflops->gflops_VVbe += 1E-9 * N;
 
         start_time = omp_get_wtime();
         rho = dot(N, r, z);
-        time->dot += omp_get_wtime() - start_time;
+        gflops->time_dot += omp_get_wtime() - start_time;
+        gflops->gflops_dot += 2 * 1E-9 * N;
 
         if (*k == 1) {
             copy(N, z, p);
@@ -539,26 +553,31 @@ void solve(int N, int IA[], double x[], int JA[], double A[], double b[], int *k
 
             start_time = omp_get_wtime();
             axpby(N, betta, p, 1, z);
-            time->axpby += omp_get_wtime() - start_time;
+            gflops->time_axpby += omp_get_wtime() - start_time;
+            gflops->gflops_axpby += 3 * 1E-9 * N;
         }
 
         start_time = omp_get_wtime();
         SpMV(N, IA, JA, A, p, q);
-        time->SpMV += omp_get_wtime() - start_time;
+        gflops->time_SpMV += omp_get_wtime() - start_time;
+        gflops->gflops_SpMV += 2 * 1E-9 * IA[N];
 
         start_time = omp_get_wtime();
         alpha = rho / dot(N, p, q);
-        time->dot += omp_get_wtime() - start_time;
+        gflops->time_dot += omp_get_wtime() - start_time;
+        gflops->gflops_dot += 2 * 1E-9 * N;
 
         start_time = omp_get_wtime();
         axpby(N, 1, x, alpha, p);
-        time->axpby += omp_get_wtime() - start_time;
+        gflops->time_axpby += omp_get_wtime() - start_time;
+        gflops->gflops_axpby += 3 * 1E-9 * N;
 
         start_time = omp_get_wtime();
         axpby(N, 1, r, -alpha, q);
-        time->axpby += omp_get_wtime() - start_time;
+        gflops->time_axpby += omp_get_wtime() - start_time;
+        gflops->gflops_axpby += 3 * 1E-9 * N;
 
-        printf("\nNumber of iteration: %d\tres = %.2f\n", *k, L2(N, r));
+        printf("\nNumber of iteration: %d\tres = %.5f\n", *k, L2(N, r));
 
         if ((rho < tol*L2(N, b)) || (*k >= maxiter))
             break;
@@ -586,7 +605,7 @@ int main(int argc, char *argv[]) {
     FILE *f;
     char filename[MAX_SIZE_OF_STRING] = "";
     double start_time, end_time;
-    struct time_by_kernel time;
+    struct res_by_kernel gflops;
 
     start_time = omp_get_wtime();
 
@@ -682,7 +701,7 @@ int main(int argc, char *argv[]) {
     end_time = omp_get_wtime();
 
     printf("\nGraph in CSR format was build\n");
-    printf("Time of building: %.2f seconds\n", end_time - start_time);
+    printf("Time of building: %.5f seconds\n", end_time - start_time);
     printf("Exepted memory: %d Kbytes\n", exepted_memory/1024);
 
     free(elements);
@@ -718,7 +737,7 @@ int main(int argc, char *argv[]) {
     end_time = omp_get_wtime();
 
     printf("\nCalculated values in matrix\n");
-    printf("Time of calculating: %.2f seconds\n", end_time - start_time);
+    printf("Time of calculating: %.5f seconds\n", end_time - start_time);
     printf("Exepted memory: %d Kbytes\n", exepted_memory/1024);
 
     start_time = omp_get_wtime();
@@ -727,11 +746,12 @@ int main(int argc, char *argv[]) {
     exepted_memory += count_nodes * sizeof(double);
 
     omp_set_num_threads(count_threads);
-    solve(count_nodes, IA, x, JA, A, b, &count_steps, &res, maxiter, tol, &time);
+
+    solve(count_nodes, IA, x, JA, A, b, &count_steps, &res, maxiter, tol, &gflops);
 
     if (DEBUG) {
         fprintf(f, "\n\nResults:\n");
-        fprintf(f, "  res: %.3f\n", res);
+        fprintf(f, "  res: %.5f\n", res);
         fprintf(f, "  count steps: %d\n", count_steps);
         fprintf(f, "  X: ");
         for (int i = 0; i < count_nodes; i++) fprintf(f, " %.4f", x[i]);
@@ -740,14 +760,14 @@ int main(int argc, char *argv[]) {
     end_time = omp_get_wtime();
 
     printf("\nSolved\n");
-    printf("Time of calculating: %.2f seconds\n", end_time - start_time);
+    printf("Time of calculating: %.5f seconds\n", end_time - start_time);
     printf("Exepted memory: %d Kbytes\n", exepted_memory/1024);
 
     printf("\nTiming by kernels\n");
-    printf("Time of dot: %.3f seconds\n", time.dot);
-    printf("Time of axpby: %.3f seconds\n", time.axpby);
-    printf("Time of SpMV: %.3f seconds\n", time.SpMV);
-    printf("Time of VVbe: %.3f seconds\n\n", time.VVbe);
+    printf("Time of dot: %.5f seconds, gflops: %.5f\n", gflops.time_dot, gflops.gflops_dot);
+    printf("Time of axpby: %.5f seconds, gflops: %.5f\n", gflops.time_axpby, gflops.gflops_axpby);
+    printf("Time of SpMV: %.5f seconds, gflops: %.5f\n", gflops.time_SpMV, gflops.gflops_SpMV);
+    printf("Time of VVbe: %.5f seconds, gflops: %.5f\n\n", gflops.time_VVbe, gflops.gflops_VVbe);
 
     return 0;
 }
