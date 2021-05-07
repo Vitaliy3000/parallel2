@@ -1,13 +1,14 @@
-#include <stdio.h>
+#include <assert.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <omp.h>
-#include "lib.h"
+#include "kernals_omp.h"
 
 
 const double EPS = 0.00001;
 const int COUNT_CALLS = 10;
 const int SIZE_OF_ARRAY = 10000000;
-const int MAX_COUNT_THREADS = 9;
+const int MAX_COUNT_THREADS = 13;
 
 
 int compare(double x, double y) {
@@ -153,51 +154,60 @@ double mean_time_copy() {
 
 
 int main(int argc, char *argv[]) {
+    printf("\n");
+
     for (int i = 1; i < MAX_COUNT_THREADS; i++) {
         omp_set_num_threads(i);
-        printf("Count threads: %d\tTest sum: %d\tMean time: %.4f\n", i, test_sum(), mean_time_sum());
+        assert(test_sum());
+        printf("Test sum: Count threads: %d\tMean time: %.4f\n", i, mean_time_sum());
     }
 
     printf("\n");
 
     for (int i = 1; i < MAX_COUNT_THREADS; i++) {
         omp_set_num_threads(i);
-        printf("Count threads: %d\tTest L2: %d\tMean time: %.4f\n", i, test_L2(), mean_time_L2());
+        assert(test_L2());
+        printf("Test L2: Count threads: %d\tMean time: %.4f\n", i, mean_time_L2());
     }
 
     printf("\n");
 
     for (int i = 1; i < MAX_COUNT_THREADS; i++) {
         omp_set_num_threads(i);
-        printf("Count threads: %d\tTest dot: %d\tMean time: %.4f\n", i, test_dot(), mean_time_dot());
+        assert(test_dot());
+        printf("Test dot: Count threads: %d\tMean time: %.4f\n", i, mean_time_dot());
     }
 
     printf("\n");
 
     for (int i = 1; i < MAX_COUNT_THREADS; i++) {
         omp_set_num_threads(i);
-        printf("Count threads: %d\tTest axpby: %d\tMean time: %.4f\n", i, test_axpby(), mean_time_axpby());
+        assert(test_axpby());
+        printf("Test axpby: Count threads: %d\tMean time: %.4f\n", i, mean_time_axpby());
     }
 
     printf("\n");
 
     for (int i = 1; i < MAX_COUNT_THREADS; i++) {
         omp_set_num_threads(i);
-        printf("Count threads: %d\tTest VVbe: %d\tMean time: %.4f\n", i, test_VVbe(), mean_time_VVbe());
+        assert(test_VVbe());
+        printf("Test VVbe: Count threads: %d\tMean time: %.4f\n", i, mean_time_VVbe());
     }
 
     printf("\n");
 
     for (int i = 1; i < MAX_COUNT_THREADS; i++) {
         omp_set_num_threads(i);
-        printf("Count threads: %d\tTest SpMV: %d\tMean time: %.4f\n", i, test_SpMV(), mean_time_SpMV());
+        assert(test_SpMV());
+        printf("Test SpMV: Count threads: %d\tMean time: %.4f\n", i, mean_time_SpMV());
     }
 
     printf("\n");
 
     for (int i = 1; i < MAX_COUNT_THREADS; i++) {
         omp_set_num_threads(i);
-        printf("Count threads: %d\tTest copy: %d\tMean time: %.4f\n", i, test_copy(), mean_time_copy());
+        assert(test_copy());
+        printf("Test copy: Count threads: %d\tMean time: %.4f\n", i, mean_time_copy());
     }
 
     printf("\n");

@@ -1,13 +1,6 @@
-double sum(int, double[]);
+#include <stdlib.h>
+#include <stdio.h>
 
-double L2(int, double[]);
-
-double dot(int, double[], double[]);
-
-void axpby(int, double, double[], double, double[]);
-
-void VVbe(int, double[], double[], double[]);
-
-void SpMV(int, int[], int[], double[], double[], double[]);
-
-void copy(int, double[], double[]);
+void* strict_malloc(size_t);
+void* strict_calloc(size_t, size_t);
+void* strict_realloc(void*, size_t);
